@@ -1,0 +1,9 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+WARNING: Loaded resource as image file, this will not work on export: 'res://casa_sem_botoes.jpg'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2780)
+   GDScript backtrace (most recent call first):
+       [0] show_menu (res://main.gd:159)
+       [1] _ready (res://main.gd:44)
+       [2] check (res://check_phase.gd:8)
+PASS: REFERENCE POSITIONS; TIMER AND 7 LABELS FIT; ALL 7 WORDS SELECTED
