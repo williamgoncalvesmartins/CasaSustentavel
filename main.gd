@@ -35,6 +35,8 @@ var found_cells: Array[Vector2i] = []
 var grid: Array = []
 var word_start := Vector2i(-1, -1)
 var report_rows: Array = []
+var session_id := ""
+var report_path := SAVE_PATH
 var feedback_label: Label
 var clock_label: Label
 var exercise_area: VBoxContainer
@@ -258,6 +260,9 @@ func submit_student_name(input: LineEdit) -> void:
 	start_game()
 
 func start_game() -> void:
+	session_id = str(Time.get_unix_time_from_system()) + "-" + str(randi())
+	found_words.clear()
+	elapsed = 0.0
 	question_index = 0
 	score = 0
 	answered = false
@@ -607,9 +612,13 @@ func complete_game() -> void:
 	add_footer(col, show_menu)
 
 func upsert_report(row: Dictionary) -> void:
+	if session_id.is_empty():
+		session_id = str(Time.get_unix_time_from_system()) + "-" + str(randi())
+	row["partida_id"] = session_id
+	row["aluno"] = str(row.get("aluno", "")).strip_edges().to_upper()
 	var replaced := false
 	for i in range(report_rows.size()):
-		if str(report_rows[i].get("aluno", "")) == student_name:
+		if str(report_rows[i].get("partida_id", "")) == session_id:
 			report_rows[i] = row
 			replaced = true
 			break
@@ -618,54 +627,114 @@ func upsert_report(row: Dictionary) -> void:
 	save_report()
 
 func load_report() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
+	if not FileAccess.file_exists(report_path):
 		return
-	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var file := FileAccess.open(report_path, FileAccess.READ)
 	var parsed = JSON.parse_string(file.get_as_text())
 	if parsed is Array:
 		report_rows = parsed
 
 func save_report() -> void:
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(report_path, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(report_rows, "  "))
+
+func ranking_rows() -> Array:
+	var ranking: Array = []
+	for entry in report_rows:
+		if entry is Dictionary and entry.get("concluido", false) and not str(entry.get("aluno", "")).strip_edges().is_empty():
+			ranking.append(entry)
+	ranking.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var sa := int(a.get("fase_1_acertos", 0))
+		var sb := int(b.get("fase_1_acertos", 0))
+		if sa != sb:
+			return sa > sb
+		var ta := int(a.get("tempo_fase_2_segundos", 0))
+		var tb := int(b.get("tempo_fase_2_segundos", 0))
+		if ta != tb:
+			return ta < tb
+		return str(a.get("atualizado_em", "")) < str(b.get("atualizado_em", ""))
+	)
+	return ranking
+
+func report_label(parent: Control, text: String, rect: Rect2, font_size: int, color: Color = PAPER, centered: bool = false) -> Label:
+	var label := make_label(text, font_size, color, centered)
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.clip_text = true
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(label)
+	label.size = rect.size
+	label.position = rect.position
+	return label
 
 func show_report() -> void:
 	clear_screen()
 	page = "RELATORIO"
-	var root := VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.offset_left = 45
-	root.offset_right = -45
-	root.offset_top = 26
-	root.offset_bottom = -26
-	root.add_theme_constant_override("separation", 14)
-	add_child(root)
-	add_heading(root, "RELATÓRIO DOS ALUNOS", "RESULTADOS SALVOS NESTE COMPUTADOR")
+	add_screen_background(BG_CLEAN, Color(0.015, 0.08, 0.06, 0.30))
+	var frame := Panel.new()
+	var style := word_style(Color("#10232d"), 26, 3)
+	style.shadow_color = Color(0, 0, 0, 0.38)
+	style.shadow_size = 16
+	frame.add_theme_stylebox_override("panel", style)
+	word_place(frame, Rect2(219, 26, 926, 590))
+	report_label(frame, "RELATÓRIO", Rect2(20, 10, 886, 57), 44, PAPER, true)
+	report_label(frame, "RANKING DOS ALUNOS", Rect2(20, 63, 886, 30), 22, MINT, true)
+	var line := ColorRect.new()
+	line.color = Color("#569c7c")
+	frame.add_child(line)
+	line.position = Vector2(42, 93)
+	line.size = Vector2(842, 2)
+	report_label(frame, "POS.", Rect2(47, 103, 65, 34), 19, MINT, true)
+	report_label(frame, "ALUNO", Rect2(145, 103, 230, 34), 19, MINT)
+	report_label(frame, "FASE 1 · PONTUAÇÃO", Rect2(382, 103, 265, 34), 19, MINT)
+	report_label(frame, "FASE 2 · TEMPO", Rect2(665, 103, 220, 34), 19, MINT)
 	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(scroll)
+	scroll.name = "RankingScroll"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	word_place(scroll, Rect2(244, 166, 878, 331))
 	var list := VBoxContainer.new()
-	list.add_theme_constant_override("separation", 8)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 4)
 	scroll.add_child(list)
-	if report_rows.is_empty():
-		list.add_child(make_label("AINDA NÃO HÁ RESULTADOS. INICIE O JOGO PARA CRIAR UM RELATÓRIO.", 21, TEXT_DARK, true))
-	else:
-		var header := make_panel(DARK)
-		list.add_child(header)
-		var cols := HBoxContainer.new()
-		cols.add_child(make_label("ALUNO  ·  FASE 1  ·  FASE 2  ·  TEMPO  ·  SITUAÇÃO", 17, PAPER))
-		header.add_child(cols)
-		for row in report_rows:
-			var card := make_panel(Color("#e6f2e9"))
-			list.add_child(card)
-			card.add_child(make_label("%s     %d/%d ACERTOS     %d/%d PALAVRAS     %s     %s" % [str(row.get("aluno", "ALUNO")), int(row.get("fase_1_acertos", 0)), int(row.get("fase_1_total", QUESTIONS.size())), int(row.get("fase_2_encontradas", 0)), int(row.get("fase_2_total", WORDS.size())), format_time(int(row.get("tempo_fase_2_segundos", 0))), "CONCLUÍDO" if row.get("concluido", false) else "EM ANDAMENTO"], 18, TEXT_DARK))
-	root.add_child(make_label("OS DADOS FICAM SALVOS LOCALMENTE NO DISPOSITIVO.", 15, Color("#487061"), true))
-	var row_buttons := HBoxContainer.new()
-	row_buttons.add_child(make_button("VOLTAR", show_menu))
-	row_buttons.add_child(make_button("EXPORTAR CSV", choose_csv_path, true))
-	row_buttons.add_child(make_button("APAGAR RELATÓRIO", clear_report))
-	root.add_child(row_buttons)
+	var ranking := ranking_rows()
+	if ranking.is_empty():
+		var empty := Control.new()
+		empty.custom_minimum_size = Vector2(850, 140)
+		list.add_child(empty)
+		report_label(empty, "NENHUMA PARTIDA CONCLUÍDA AINDA.", Rect2(0, 32, 850, 40), 24, PAPER, true)
+		report_label(empty, "TERMINE AS DUAS FASES PARA APARECER AQUI.", Rect2(0, 77, 850, 40), 19, MINT, true)
+	for i in range(ranking.size()):
+		var entry: Dictionary = ranking[i]
+		var row := Panel.new()
+		row.custom_minimum_size = Vector2(850, 44)
+		row.add_theme_stylebox_override("panel", word_style(Color("#20553f") if i == 0 else Color("#1b303c"), 13, 1))
+		if i == 0:
+			var gold := word_style(Color("#20553f"), 13, 2)
+			gold.border_color = Color("#e8d47f")
+			row.add_theme_stylebox_override("panel", gold)
+		list.add_child(row)
+		var medal := Color("#f3d878") if i == 0 else (Color("#c4d3dd") if i == 1 else (Color("#dca778") if i == 2 else MINT))
+		report_label(row, str(i + 1), Rect2(17, 3, 65, 38), 25, medal, true)
+		var name_label := report_label(row, str(entry.get("aluno", "")), Rect2(120, 3, 231, 38), 23)
+		name_label.tooltip_text = str(entry.get("aluno", "")).to_upper()
+		var points := clampi(int(entry.get("fase_1_acertos", 0)), 0, 5)
+		for n in range(5):
+			var star := Control.new()
+			star.set_script(preload("res://score_star.gd"))
+			star.earned = n < points
+			row.add_child(star)
+			star.position = Vector2(355 + n * 29, 5)
+			star.size = Vector2(30, 34)
+		report_label(row, "%d/5" % points, Rect2(510, 3, 75, 38), 24)
+		report_label(row, format_time(int(entry.get("tempo_fase_2_segundos", 0))), Rect2(662, 3, 171, 38), 27)
+	var note := Panel.new()
+	note.add_theme_stylebox_override("panel", word_style(Color("#1c3038"), 14, 1))
+	word_place(note, Rect2(244, 507, 877, 90))
+	report_label(note, "FASE 1: CADA ACERTO VALE UMA ESTRELA. MÁXIMO: 5.", Rect2(10, 10, 857, 28), 19, PAPER, true)
+	report_label(note, "DESEMPATE: MENOR TEMPO PARA CONCLUIR A FASE 2.", Rect2(10, 39, 857, 28), 19, PAPER, true)
+	var back := make_button("◀  VOLTAR", show_menu)
+	word_place(back, Rect2(554, 664, 256, 65))
 
 func choose_csv_path() -> void:
 	var picker := FileDialog.new()
