@@ -17,8 +17,6 @@ const QUESTIONS = [
 	{"kind":"CAPACIDADE","ask":"QUAL CAIXA GUARDA MAIS ÁGUA?","a":"CAIXA A  ·  500 LITROS","b":"CAIXA B  ·  1.000 LITROS","correct":1,"hint":"COMPARE A QUANTIDADE DE LITROS."},
 	{"kind":"COMPRIMENTO","ask":"QUAL CAMINHO É MAIS COMPRIDO?","a":"CAMINHO A  ·  8 METROS","b":"CAMINHO B  ·  5 METROS","correct":0,"hint":"COMPARE O NÚMERO DE METROS."},
 	{"kind":"MASSA","ask":"QUAL SACO DE COMPOSTO É MAIS LEVE?","a":"SACO A  ·  2 QUILOS","b":"SACO B  ·  5 QUILOS","correct":0,"hint":"QUILOS INDICAM A MASSA."},
-	{"kind":"TEMPO","ask":"QUAL LÂMPADA FICA ACESA POR MAIS TEMPO?","a":"LÂMPADA A  ·  4 HORAS","b":"LÂMPADA B  ·  7 HORAS","correct":1,"hint":"COMPARE A QUANTIDADE DE HORAS."},
-	{"kind":"TEMPERATURA","ask":"QUAL DIA ESTÁ MAIS QUENTE?","a":"DIA A  ·  18 GRAUS","b":"DIA B  ·  25 GRAUS","correct":1,"hint":"COMPARE OS GRAUS DO TERMÔMETRO."}
 ]
 const WORDS = ["SUSTENTABILIDADE", "EFICIÊNCIA", "CONSUMO", "DESPERDÍCIO", "ECONOMIA", "GRANDEZAS", "MEDIDAS"]
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVXZ"
@@ -37,6 +35,8 @@ var word_start := Vector2i(-1, -1)
 var report_rows: Array = []
 var session_id := ""
 var report_path := SAVE_PATH
+var progress_path := "user://progresso.json"
+var report_phase := 1
 var feedback_label: Label
 var clock_label: Label
 var exercise_area: VBoxContainer
@@ -48,7 +48,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if page == "PALAVRAS" and not is_paused:
-		elapsed += delta
+		elapsed = minf(elapsed + delta, 3599.0)
 		if is_instance_valid(clock_label):
 			clock_label.text = format_time(int(elapsed))
 
@@ -183,7 +183,7 @@ func show_menu() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	layout.add_child(row)
-	row.add_child(make_button("▶  INICIAR JOGO", ask_student_name, true))
+	row.add_child(make_button("▶  INICIAR JOGO", play_or_resume, true))
 	row.add_child(make_button("▤  RELATÓRIO", show_report))
 	row.add_child(make_button("★  CRÉDITOS", show_credits))
 	row.add_child(make_button("⏻  SAIR DO JOGO", quit_game))
@@ -260,6 +260,7 @@ func submit_student_name(input: LineEdit) -> void:
 	start_game()
 
 func start_game() -> void:
+	clear_snapshot()
 	session_id = str(Time.get_unix_time_from_system()) + "-" + str(randi())
 	found_words.clear()
 	elapsed = 0.0
@@ -330,7 +331,7 @@ func show_question() -> void:
 	progress.anchor_bottom = 0.945
 	add_child(progress)
 	var next := make_button("PRÓXIMO  →", next_question, true)
-	next.disabled = true
+	next.disabled = not answered
 	next.anchor_left = 0.63
 	next.anchor_top = 0.86
 	next.anchor_right = 0.89
@@ -485,10 +486,9 @@ func show_word_search() -> void:
 	settings.pressed.connect(toggle_pause)
 	word_place(settings, Rect2(1290, 23, 61, 61))
 	if found_words.size() == WORDS.size():
-		var finish := make_button("CONCLUIR JOGO", complete_game, true)
-		word_place(finish, Rect2(808, 686, 386, 64))
+		show_words_complete()
 
-func show_phase_settings() -> void:
+func old_phase_settings() -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.title = "OPÇÕES DA FASE"
 	dialog.dialog_text = "O QUE VOCÊ QUER FAZER?"
@@ -579,16 +579,16 @@ func toggle_pause() -> void:
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	cover.add_child(box)
 	var panel := make_panel(PAPER)
-	panel.custom_minimum_size = Vector2(490, 260)
+	panel.custom_minimum_size = Vector2(620, 280)
 	box.add_child(panel)
 	var col := content_column(18)
 	panel.add_child(col)
-	col.add_child(make_label("JOGO PAUSADO", 30, TEXT_DARK, true))
-	col.add_child(make_label("VOCÊ PODE CONTINUAR QUANDO ESTIVER PRONTO.", 18, TEXT_DARK, true))
+	col.add_child(make_label("JOGO PAUSADO", 44, TEXT_DARK, true))
 	col.add_child(make_button("CONTINUAR", toggle_pause, true))
 	col.add_child(make_button("SALVAR E VOLTAR AO MENU", save_current_progress, true))
 
 func save_current_progress() -> void:
+	save_snapshot()
 	is_paused = false
 	save_current_row()
 	show_menu()
@@ -599,6 +599,8 @@ func save_current_row() -> void:
 	upsert_report({"aluno": student_name, "fase_1_acertos": score, "fase_1_total": QUESTIONS.size(), "fase_2_encontradas": found_words.size(), "fase_2_total": WORDS.size(), "tempo_fase_2_segundos": int(elapsed), "concluido": false, "atualizado_em": Time.get_datetime_string_from_system()})
 
 func complete_game() -> void:
+	is_paused = false
+	clear_snapshot()
 	var duration := int(elapsed)
 	upsert_report({"aluno": student_name, "fase_1_acertos": score, "fase_1_total": QUESTIONS.size(), "fase_2_encontradas": found_words.size(), "fase_2_total": WORDS.size(), "tempo_fase_2_segundos": duration, "concluido": true, "atualizado_em": Time.get_datetime_string_from_system()})
 	clear_screen()
@@ -642,9 +644,11 @@ func save_report() -> void:
 func ranking_rows() -> Array:
 	var ranking: Array = []
 	for entry in report_rows:
-		if entry is Dictionary and entry.get("concluido", false) and not str(entry.get("aluno", "")).strip_edges().is_empty():
+		if entry is Dictionary and (report_phase == 2 or int(entry.get("fase_1_total", 5)) == 3) and entry.get("concluido", false) and not str(entry.get("aluno", "")).strip_edges().is_empty():
 			ranking.append(entry)
 	ranking.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if report_phase == 2:
+			return int(a.get("tempo_fase_2_segundos", 0)) < int(b.get("tempo_fase_2_segundos", 0))
 		var sa := int(a.get("fase_1_acertos", 0))
 		var sb := int(b.get("fase_1_acertos", 0))
 		if sa != sb:
@@ -687,8 +691,7 @@ func show_report() -> void:
 	line.size = Vector2(842, 2)
 	report_label(frame, "POS.", Rect2(47, 103, 65, 34), 19, MINT, true)
 	report_label(frame, "ALUNO", Rect2(145, 103, 230, 34), 19, MINT)
-	report_label(frame, "FASE 1 · PONTUAÇÃO", Rect2(382, 103, 265, 34), 19, MINT)
-	report_label(frame, "FASE 2 · TEMPO", Rect2(665, 103, 220, 34), 19, MINT)
+	report_label(frame, "PONTUAÇÃO" if report_phase == 1 else "TEMPO DE CONCLUSÃO", Rect2(470, 103, 400, 34), 19, MINT)
 	var scroll := ScrollContainer.new()
 	scroll.name = "RankingScroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -715,26 +718,36 @@ func show_report() -> void:
 			row.add_theme_stylebox_override("panel", gold)
 		list.add_child(row)
 		var medal := Color("#f3d878") if i == 0 else (Color("#c4d3dd") if i == 1 else (Color("#dca778") if i == 2 else MINT))
-		report_label(row, str(i + 1), Rect2(17, 3, 65, 38), 25, medal, true)
+		if i < 3:
+			var badge := Panel.new()
+			badge.add_theme_stylebox_override("panel", word_style(medal, 18, 2))
+			row.add_child(badge)
+			badge.position = Vector2(33, 5)
+			badge.size = Vector2(34, 34)
+		report_label(row, str(i + 1), Rect2(17, 3, 65, 38), 25, DARK if i < 3 else PAPER, true)
 		var name_label := report_label(row, str(entry.get("aluno", "")), Rect2(120, 3, 231, 38), 23)
 		name_label.tooltip_text = str(entry.get("aluno", "")).to_upper()
-		var points := clampi(int(entry.get("fase_1_acertos", 0)), 0, 5)
-		for n in range(5):
+		var points := clampi(int(entry.get("fase_1_acertos", 0)), 0, 3)
+		for n in range(3 if report_phase == 1 else 0):
 			var star := Control.new()
 			star.set_script(preload("res://score_star.gd"))
 			star.earned = n < points
 			row.add_child(star)
 			star.position = Vector2(355 + n * 29, 5)
 			star.size = Vector2(30, 34)
-		report_label(row, "%d/5" % points, Rect2(510, 3, 75, 38), 24)
-		report_label(row, format_time(int(entry.get("tempo_fase_2_segundos", 0))), Rect2(662, 3, 171, 38), 27)
+		if report_phase == 1:
+			report_label(row, "%d/3" % points, Rect2(510, 3, 75, 38), 24)
+		else:
+			report_label(row, format_time(mini(int(entry.get("tempo_fase_2_segundos", 0)), 3599)), Rect2(460, 3, 270, 38), 27)
 	var note := Panel.new()
 	note.add_theme_stylebox_override("panel", word_style(Color("#1c3038"), 14, 1))
 	word_place(note, Rect2(244, 507, 877, 90))
-	report_label(note, "FASE 1: CADA ACERTO VALE UMA ESTRELA. MÁXIMO: 5.", Rect2(10, 10, 857, 28), 19, PAPER, true)
-	report_label(note, "DESEMPATE: MENOR TEMPO PARA CONCLUIR A FASE 2.", Rect2(10, 39, 857, 28), 19, PAPER, true)
+	report_label(note, "FASE 1: CADA ACERTO VALE UMA ESTRELA.", Rect2(10, 10, 857, 28), 19, PAPER, true)
+	report_label(note, "FASE 2: TEMPO QUE FOI CONCLUÍDO A FASE.", Rect2(10, 39, 857, 28), 19, PAPER, true)
 	var back := make_button("◀  VOLTAR", show_menu)
 	word_place(back, Rect2(554, 664, 256, 65))
+	word_place(make_button("FASE 1", func(): report_phase = 1; show_report(), report_phase == 1), Rect2(244, 615, 220, 45))
+	word_place(make_button("FASE 2", func(): report_phase = 2; show_report(), report_phase == 2), Rect2(900, 615, 220, 45))
 
 func choose_csv_path() -> void:
 	var picker := FileDialog.new()
@@ -791,3 +804,87 @@ func quit_game() -> void:
 
 func format_time(seconds: int) -> String:
 	return "%02d:%02d" % [seconds / 60, seconds % 60]
+
+func show_phase_settings() -> void:
+	toggle_pause()
+
+func clear_snapshot() -> void:
+	if FileAccess.file_exists(progress_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(progress_path))
+
+func save_snapshot() -> void:
+	var cells: Array = []
+	for cell in found_cells:
+		cells.append([cell.x, cell.y])
+	var data := {"page": page, "name": student_name, "question": question_index, "score": score, "answered": answered, "elapsed": elapsed, "words": found_words, "cells": cells, "grid": grid, "start": [word_start.x, word_start.y], "session": session_id}
+	var file := FileAccess.open(progress_path, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(data))
+
+func play_or_resume() -> void:
+	if not FileAccess.file_exists(progress_path):
+		ask_student_name()
+		return
+	clear_screen()
+	page = "RETOMAR"
+	add_screen_background(BG_CLEAN, Color(0.02, 0.10, 0.08, 0.25))
+	var col := centered_panel()
+	add_heading(col, "PARTIDA SALVA")
+	col.add_child(make_button("CONTINUAR DE ONDE PAROU", resume_snapshot, true))
+	col.add_child(make_button("REINICIAR O JOGO", func(): clear_snapshot(); ask_student_name()))
+	col.add_child(make_button("VOLTAR", show_menu))
+
+func resume_snapshot() -> void:
+	var file := FileAccess.open(progress_path, FileAccess.READ)
+	if file == null:
+		ask_student_name()
+		return
+	var data = JSON.parse_string(file.get_as_text())
+	if not data is Dictionary:
+		ask_student_name()
+		return
+	student_name = str(data.get("name", ""))
+	question_index = clampi(int(data.get("question", 0)), 0, 3)
+	score = clampi(int(data.get("score", 0)), 0, 3)
+	answered = bool(data.get("answered", false))
+	elapsed = clampf(float(data.get("elapsed", 0)), 0, 3599)
+	session_id = str(data.get("session", ""))
+	found_words.assign(data.get("words", []))
+	found_cells.clear()
+	for cell in data.get("cells", []):
+		found_cells.append(Vector2i(int(cell[0]), int(cell[1])))
+	grid = data.get("grid", [])
+	var start = data.get("start", [-1, -1])
+	word_start = Vector2i(int(start[0]), int(start[1]))
+	is_paused = false
+	if data.get("page", "") == "PALAVRAS":
+		show_word_search()
+	elif question_index >= 3:
+		show_phase_one_result()
+	else:
+		show_question()
+
+func show_words_complete() -> void:
+	is_paused = true
+	clear_snapshot()
+	upsert_report({"aluno": student_name, "fase_1_acertos": score, "fase_1_total": 3, "fase_2_encontradas": 7, "fase_2_total": 7, "tempo_fase_2_segundos": int(elapsed), "concluido": true, "atualizado_em": Time.get_datetime_string_from_system()})
+	var cover := ColorRect.new()
+	cover.color = Color(0.02, 0.08, 0.08, 0.76)
+	cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(cover)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cover.add_child(center)
+	var panel := make_panel(PAPER)
+	panel.custom_minimum_size = Vector2(800, 300)
+	center.add_child(panel)
+	var col := content_column(24)
+	panel.add_child(col)
+	add_heading(col, "PARABÉNS!")
+	var row := HBoxContainer.new()
+	col.add_child(row)
+	var message := make_label("VOCÊ ENCONTROU TODAS AS 7 PALAVRAS!", 27, TEXT_DARK, true)
+	message.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(message)
+	row.add_child(make_label(format_time(int(elapsed)), 42, GREEN, true))
+	col.add_child(make_button("CONTINUAR", complete_game, true))
