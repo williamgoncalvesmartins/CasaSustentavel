@@ -274,18 +274,22 @@ func start_game() -> void:
 func show_question() -> void:
 	clear_screen()
 	page = "FASE1"
-	var art := Control.new()
-	art.set_script(preload("res://challenge_art.gd"))
-	art.room = question_index
-	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	word_place(art, Rect2(0, 0, 1364, 768))
+	if question_index == 0:
+		add_screen_background(load("res://desafio_caixas.jpg"), Color.TRANSPARENT)
+	else:
+		var art := Control.new()
+		art.set_script(preload("res://challenge_art.gd"))
+		art.room = question_index
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		word_place(art, Rect2(0, 0, 1364, 768))
 	var header := Panel.new()
 	header.add_theme_stylebox_override("panel", word_style(DARK, 22, 2))
 	word_place(header, Rect2(184, 24, 1000, 142))
 	report_label(header, "FASE 1 · DESAFIO %d/3" % (question_index + 1), Rect2(24, 14, 952, 34), 23, MINT, true)
 	report_label(header, QUESTIONS[question_index].ask, Rect2(24, 61, 952, 55), 32, PAPER, true)
 	var rooms := ["ÁREA DE SERVIÇO", "COZINHA", "ESTUFA"]
-	word_place(make_label(rooms[question_index], 21, TEXT_DARK, true), Rect2(200, 180, 840, 36))
+	if question_index != 0:
+		word_place(make_label(rooms[question_index], 21, TEXT_DARK, true), Rect2(200, 180, 840, 36))
 	var measures := [["500 LITROS", "1.000 LITROS"], ["1 METRO", "2 METROS"], ["2 QUILOS", "5 QUILOS"]]
 	for i in range(2):
 		var target := Button.new()
@@ -295,25 +299,48 @@ func show_question() -> void:
 		target.add_theme_stylebox_override("hover", word_style(Color(0.3,0.9,0.6,0.12), 18, 3))
 		target.add_theme_stylebox_override("focus", word_style(Color.TRANSPARENT, 18, 3))
 		target.pressed.connect(answer_question.bind(i))
-		word_place(target, Rect2(245+i*430, 244, 355, 316))
+		var object_rect := Rect2(245+i*430, 244, 355, 316)
+		if question_index == 0:
+			object_rect = Rect2(343, 277, 270, 180) if i == 0 else Rect2(680, 241, 360, 216)
+		word_place(target, object_rect)
 		var plate := Panel.new()
 		plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		plate.add_theme_stylebox_override("panel", word_style(DARK, 12, 1))
-		word_place(plate, Rect2(280+i*430, 568, 280, 53))
-		report_label(plate, measures[question_index][i], Rect2(8,5,264,43), 27, PAPER, true)
+		var plate_rect := Rect2(280+i*430, 568, 280, 53)
+		if question_index == 0:
+			plate_rect = Rect2(374, 354, 204, 56) if i == 0 else Rect2(738, 346, 240, 64)
+		word_place(plate, plate_rect)
+		report_label(plate, measures[question_index][i], Rect2(4, 4, plate_rect.size.x-8, plate_rect.size.y-8), 25, PAPER, true)
+	if question_index == 0:
+		var footer := Panel.new()
+		footer.add_theme_stylebox_override("panel", word_style(Color(0.95,0.98,0.96,0.94), 20))
+		word_place(footer, Rect2(174, 622, 1016, 136))
+		for i in range(2):
+			var dimensions := "1,20 M × 0,80 M" if i == 0 else "1,60 M × 1,00 M"
+			var label := make_label(dimensions, 21, PAPER, true)
+			label.add_theme_color_override("font_shadow_color", DARK)
+			label.add_theme_constant_override("shadow_offset_x", 2)
+			label.add_theme_constant_override("shadow_offset_y", 2)
+			word_place(label, Rect2(345 if i == 0 else 716, 471, 300, 36))
 	feedback_label = make_label("TOQUE NO OBJETO PARA RESPONDER." if not answered else "RESPOSTA REGISTRADA. CONTINUE.", 22, TEXT_DARK, true)
 	word_place(feedback_label, Rect2(180, 638, 1000, 34))
 	var next := make_button("PRÓXIMO DESAFIO" if question_index < 2 else "CONCLUIR FASE 1", next_question, true)
 	next.disabled = not answered
 	word_place(next, Rect2(482, 688, 400, 64))
 	set_meta("next_button", next)
-	var gear_image := AtlasTexture.new()
-	gear_image.atlas = BG_WORDS
-	gear_image.region = Rect2(1290,23,61,61)
-	var gear := TextureButton.new()
-	gear.texture_normal = gear_image
+	var gear := Button.new()
+	gear.name = "PhaseSettings"
+	gear.tooltip_text = "PAUSAR"
+	gear.add_theme_stylebox_override("normal", word_style(DARK, 17, 3))
+	gear.add_theme_stylebox_override("hover", word_style(Color("#235144"), 17, 3))
+	gear.add_theme_stylebox_override("focus", word_style(Color.TRANSPARENT, 17, 3))
 	gear.pressed.connect(toggle_pause)
-	word_place(gear, Rect2(1290,23,61,61))
+	word_place(gear, Rect2(1248, 28, 72, 72))
+	var icon := Control.new()
+	icon.set_script(preload("res://gear_icon.gd"))
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gear.add_child(icon)
+	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 func answer_question(choice: int) -> void:
 	if page != "FASE1" or answered:
