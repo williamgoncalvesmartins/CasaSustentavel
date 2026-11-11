@@ -15,7 +15,7 @@ const SAVE_PATH = "user://relatorio.json"
 
 const QUESTIONS = [
 	{"kind":"CAPACIDADE","ask":"QUAL CAIXA GUARDA MAIS ÁGUA?","a":"CAIXA A  ·  500 LITROS","b":"CAIXA B  ·  1.000 LITROS","correct":1,"hint":"COMPARE A QUANTIDADE DE LITROS."},
-	{"kind":"COMPRIMENTO","ask":"QUAL CAMINHO É MAIS COMPRIDO?","a":"CAMINHO A  ·  8 METROS","b":"CAMINHO B  ·  5 METROS","correct":0,"hint":"COMPARE O NÚMERO DE METROS."},
+	{"kind":"COMPRIMENTO","ask":"QUAL PRATELEIRA É MAIS COMPRIDA?","a":"CAMINHO A  ·  8 METROS","b":"CAMINHO B  ·  5 METROS","correct":1,"hint":"COMPARE O NÚMERO DE METROS."},
 	{"kind":"MASSA","ask":"QUAL SACO DE COMPOSTO É MAIS LEVE?","a":"SACO A  ·  2 QUILOS","b":"SACO B  ·  5 QUILOS","correct":0,"hint":"QUILOS INDICAM A MASSA."},
 ]
 const WORDS = ["SUSTENTABILIDADE", "EFICIÊNCIA", "CONSUMO", "DESPERDÍCIO", "ECONOMIA", "GRANDEZAS", "MEDIDAS"]
@@ -54,6 +54,7 @@ func _process(delta: float) -> void:
 
 func clear_screen() -> void:
 	for child in get_children():
+		remove_child(child)
 		child.queue_free()
 	var bg := ColorRect.new()
 	bg.color = Color("#eaf5ed")
@@ -273,85 +274,46 @@ func start_game() -> void:
 func show_question() -> void:
 	clear_screen()
 	page = "FASE1"
-	var background := TextureRect.new()
-	background.texture = BG_QUIZ
-	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(background)
-	var question: Dictionary = QUESTIONS[question_index]
-	var prompt := make_panel(Color(0.025, 0.10, 0.20, 0.96))
-	prompt.anchor_left = 0.15
-	prompt.anchor_top = 0.14
-	prompt.anchor_right = 0.72
-	prompt.anchor_bottom = 0.33
-	add_child(prompt)
-	var prompt_col := content_column(3)
-	prompt.add_child(prompt_col)
-	prompt_col.add_child(make_label("EXERCÍCIO %d DE %d  ·  %s" % [question_index + 1, QUESTIONS.size(), question.kind], 19, MINT, true))
-	prompt_col.add_child(make_label(question.ask, 29, PAPER, true))
-	var answer_back := ColorRect.new()
-	answer_back.color = Color(0.025, 0.08, 0.12, 0.94)
-	answer_back.anchor_left = 0
-	answer_back.anchor_top = 0.66
-	answer_back.anchor_right = 1
-	answer_back.anchor_bottom = 1
-	answer_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(answer_back)
-	var options := HBoxContainer.new()
-	options.anchor_left = 0.115
-	options.anchor_top = 0.69
-	options.anchor_right = 0.89
-	options.anchor_bottom = 0.83
-	options.offset_left = 0
-	options.offset_top = 0
-	options.offset_right = 0
-	options.offset_bottom = 0
-	options.add_theme_constant_override("separation", 18)
-	add_child(options)
-	var a := make_button("A  ·  " + question.a, func(): answer_question(0), true)
-	var b := make_button("B  ·  " + question.b, func(): answer_question(1), true)
-	a.custom_minimum_size.y = 86
-	b.custom_minimum_size.y = 86
-	options.add_child(a)
-	options.add_child(b)
-	feedback_label = make_label("TOQUE NA RESPOSTA CERTA.", 18, PAPER, true)
-	feedback_label.anchor_left = 0.12
-	feedback_label.anchor_top = 0.835
-	feedback_label.anchor_right = 0.56
-	feedback_label.anchor_bottom = 0.89
-	add_child(feedback_label)
-	var progress := ProgressBar.new()
-	progress.max_value = QUESTIONS.size()
-	progress.value = question_index
-	progress.anchor_left = 0.12
-	progress.anchor_top = 0.92
-	progress.anchor_right = 0.55
-	progress.anchor_bottom = 0.945
-	add_child(progress)
-	var next := make_button("PRÓXIMO  →", next_question, true)
+	var art := Control.new()
+	art.set_script(preload("res://challenge_art.gd"))
+	art.room = question_index
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	word_place(art, Rect2(0, 0, 1364, 768))
+	var header := Panel.new()
+	header.add_theme_stylebox_override("panel", word_style(DARK, 22, 2))
+	word_place(header, Rect2(184, 24, 1000, 142))
+	report_label(header, "FASE 1 · DESAFIO %d/3" % (question_index + 1), Rect2(24, 14, 952, 34), 23, MINT, true)
+	report_label(header, QUESTIONS[question_index].ask, Rect2(24, 61, 952, 55), 32, PAPER, true)
+	var rooms := ["ÁREA DE SERVIÇO", "COZINHA", "ESTUFA"]
+	word_place(make_label(rooms[question_index], 21, TEXT_DARK, true), Rect2(200, 180, 840, 36))
+	var measures := [["500 LITROS", "1.000 LITROS"], ["1 METRO", "2 METROS"], ["2 QUILOS", "5 QUILOS"]]
+	for i in range(2):
+		var target := Button.new()
+		target.name = "Object" + str(i)
+		target.tooltip_text = measures[question_index][i]
+		target.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+		target.add_theme_stylebox_override("hover", word_style(Color(0.3,0.9,0.6,0.12), 18, 3))
+		target.add_theme_stylebox_override("focus", word_style(Color.TRANSPARENT, 18, 3))
+		target.pressed.connect(answer_question.bind(i))
+		word_place(target, Rect2(245+i*430, 244, 355, 316))
+		var plate := Panel.new()
+		plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		plate.add_theme_stylebox_override("panel", word_style(DARK, 12, 1))
+		word_place(plate, Rect2(280+i*430, 568, 280, 53))
+		report_label(plate, measures[question_index][i], Rect2(8,5,264,43), 27, PAPER, true)
+	feedback_label = make_label("TOQUE NO OBJETO PARA RESPONDER." if not answered else "RESPOSTA REGISTRADA. CONTINUE.", 22, TEXT_DARK, true)
+	word_place(feedback_label, Rect2(180, 638, 1000, 34))
+	var next := make_button("PRÓXIMO DESAFIO" if question_index < 2 else "CONCLUIR FASE 1", next_question, true)
 	next.disabled = not answered
-	next.anchor_left = 0.63
-	next.anchor_top = 0.86
-	next.anchor_right = 0.89
-	next.anchor_bottom = 0.95
-	next.offset_left = 0
-	next.offset_top = 0
-	next.offset_right = 0
-	next.offset_bottom = 0
-	add_child(next)
-	var settings := make_button("⚙", show_phase_settings)
-	settings.anchor_left = 0.94
-	settings.anchor_top = 0.02
-	settings.anchor_right = 0.99
-	settings.anchor_bottom = 0.12
-	settings.offset_left = 0
-	settings.offset_top = 0
-	settings.offset_right = 0
-	settings.offset_bottom = 0
-	add_child(settings)
+	word_place(next, Rect2(482, 688, 400, 64))
 	set_meta("next_button", next)
+	var gear_image := AtlasTexture.new()
+	gear_image.atlas = BG_WORDS
+	gear_image.region = Rect2(1290,23,61,61)
+	var gear := TextureButton.new()
+	gear.texture_normal = gear_image
+	gear.pressed.connect(toggle_pause)
+	word_place(gear, Rect2(1290,23,61,61))
 
 func answer_question(choice: int) -> void:
 	if page != "FASE1" or answered:
@@ -388,7 +350,7 @@ func show_phase_one_result() -> void:
 	column.add_child(make_label("AGORA VAMOS ENCONTRAR AS PALAVRAS DA CIDADE SUSTENTÁVEL.", 21, TEXT_DARK, true))
 	var start := make_button("COMEÇAR FASE 2  →", start_word_search, true)
 	column.add_child(start)
-	add_footer(column, show_menu)
+	column.add_child(make_button("SALVAR E VOLTAR AO MENU", save_current_progress))
 
 func start_word_search() -> void:
 	found_words.clear()
@@ -733,21 +695,20 @@ func show_report() -> void:
 			star.set_script(preload("res://score_star.gd"))
 			star.earned = n < points
 			row.add_child(star)
-			star.position = Vector2(355 + n * 29, 5)
+			star.position = Vector2(460 + n * 34, 5)
 			star.size = Vector2(30, 34)
 		if report_phase == 1:
-			report_label(row, "%d/3" % points, Rect2(510, 3, 75, 38), 24)
+			report_label(row, "%d/3" % points, Rect2(580, 3, 75, 38), 24)
 		else:
 			report_label(row, format_time(mini(int(entry.get("tempo_fase_2_segundos", 0)), 3599)), Rect2(460, 3, 270, 38), 27)
 	var note := Panel.new()
 	note.add_theme_stylebox_override("panel", word_style(Color("#1c3038"), 14, 1))
 	word_place(note, Rect2(244, 507, 877, 90))
-	report_label(note, "FASE 1: CADA ACERTO VALE UMA ESTRELA.", Rect2(10, 10, 857, 28), 19, PAPER, true)
-	report_label(note, "FASE 2: TEMPO QUE FOI CONCLUÍDO A FASE.", Rect2(10, 39, 857, 28), 19, PAPER, true)
+	report_label(note, "FASE 1: CADA ACERTO VALE UMA ESTRELA." if report_phase == 1 else "FASE 2: TEMPO QUE FOI CONCLUÍDO.", Rect2(10, 25, 857, 40), 21, PAPER, true)
 	var back := make_button("◀  VOLTAR", show_menu)
-	word_place(back, Rect2(554, 664, 256, 65))
-	word_place(make_button("FASE 1", func(): report_phase = 1; show_report(), report_phase == 1), Rect2(244, 615, 220, 45))
-	word_place(make_button("FASE 2", func(): report_phase = 2; show_report(), report_phase == 2), Rect2(900, 615, 220, 45))
+	word_place(back, Rect2(554, 660, 256, 65))
+	word_place(make_button("FASE 1", func(): report_phase = 1; show_report(), report_phase == 1), Rect2(274, 660, 256, 65))
+	word_place(make_button("FASE 2", func(): report_phase = 2; show_report(), report_phase == 2), Rect2(834, 660, 256, 65))
 
 func choose_csv_path() -> void:
 	var picker := FileDialog.new()
@@ -860,7 +821,7 @@ func resume_snapshot() -> void:
 	if data.get("page", "") == "PALAVRAS":
 		show_word_search()
 	elif question_index >= 3:
-		show_phase_one_result()
+		start_word_search()
 	else:
 		show_question()
 
@@ -872,19 +833,15 @@ func show_words_complete() -> void:
 	cover.color = Color(0.02, 0.08, 0.08, 0.76)
 	cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(cover)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	cover.add_child(center)
-	var panel := make_panel(PAPER)
-	panel.custom_minimum_size = Vector2(800, 300)
-	center.add_child(panel)
-	var col := content_column(24)
-	panel.add_child(col)
-	add_heading(col, "PARABÉNS!")
-	var row := HBoxContainer.new()
-	col.add_child(row)
-	var message := make_label("VOCÊ ENCONTROU TODAS AS 7 PALAVRAS!", 27, TEXT_DARK, true)
-	message.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(message)
-	row.add_child(make_label(format_time(int(elapsed)), 42, GREEN, true))
-	col.add_child(make_button("CONTINUAR", complete_game, true))
+	var panel := Panel.new()
+	panel.add_theme_stylebox_override("panel", word_style(DARK, 26, 3))
+	cover.add_child(panel)
+	panel.position = Vector2(302, 194)
+	panel.size = Vector2(760, 380)
+	report_label(panel, "FASE 2 CONCLUÍDA", Rect2(30, 30, 700, 55), 36, PAPER, true)
+	report_label(panel, "VOCÊ ENCONTROU TODAS AS PALAVRAS!", Rect2(30, 115, 700, 42), 26, PAPER, true)
+	report_label(panel, "TEMPO: " + format_time(int(elapsed)), Rect2(30, 178, 700, 54), 34, MINT, true)
+	var button := make_button("CONTINUAR", complete_game, true)
+	panel.add_child(button)
+	button.position = Vector2(160, 276)
+	button.size = Vector2(440, 70)
