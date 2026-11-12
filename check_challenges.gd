@@ -12,7 +12,7 @@ func check() -> void:
 	game.student_name = "TESTE"
 	game.start_game()
 	await process_frame
-	for answer in [1, 1, 0]:
+	for answer in [1, 0, 1]:
 		game.get_node("Object" + str(answer)).pressed.emit()
 		assert(not game.get_meta("next_button").disabled)
 		game.get_meta("next_button").pressed.emit()

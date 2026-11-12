@@ -2,7 +2,7 @@ extends Control
 
 const BG_MENU = preload("res://menu_inicial.png")
 const BG_CLEAN = preload("res://casa_sem_botoes.jpg")
-const BG_WORDS = preload("res://Gemini_Generated_Image_amajuamajuamajua.jpg")
+const BG_WORDS = preload("res://fase2_fundo_sem_relogio.png")
 const BG_REPORT = preload("res://Gemini_Generated_Image_t0yd63t0yd63t0yd.jpg")
 const BG_QUIZ = preload("res://WhatsApp Image 2026-10-14 at 14.57.31.jpeg")
 const GREEN = Color("#25a85e")
@@ -15,8 +15,8 @@ const SAVE_PATH = "user://relatorio.json"
 
 const QUESTIONS = [
 	{"kind":"CAPACIDADE","ask":"QUAL CAIXA GUARDA MAIS ÁGUA?","a":"CAIXA A  ·  500 LITROS","b":"CAIXA B  ·  1.000 LITROS","correct":1,"hint":"COMPARE A QUANTIDADE DE LITROS."},
-	{"kind":"COMPRIMENTO","ask":"QUAL PRATELEIRA É MAIS COMPRIDA?","a":"CAMINHO A  ·  8 METROS","b":"CAMINHO B  ·  5 METROS","correct":1,"hint":"COMPARE O NÚMERO DE METROS."},
-	{"kind":"MASSA","ask":"QUAL SACO DE COMPOSTO É MAIS LEVE?","a":"SACO A  ·  2 QUILOS","b":"SACO B  ·  5 QUILOS","correct":0,"hint":"QUILOS INDICAM A MASSA."},
+	{"kind":"COMPRIMENTO","ask":"QUAL PRATELEIRA É MAIS CURTA?","a":"PRATELEIRA A · 1,20 METRO","b":"PRATELEIRA B · 1,50 METRO","correct":0,"hint":"COMPARE O NÚMERO DE METROS."},
+	{"kind":"MASSA","ask":"QUAL SACO É MAIS PESADO?","a":"SACO A  ·  2 QUILOS","b":"SACO B  ·  5 QUILOS","correct":1,"hint":"QUILOS INDICAM A MASSA."},
 ]
 const WORDS = ["SUSTENTABILIDADE", "EFICIÊNCIA", "CONSUMO", "DESPERDÍCIO", "ECONOMIA", "GRANDEZAS", "MEDIDAS"]
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVXZ"
@@ -40,6 +40,8 @@ var report_phase := 1
 var feedback_label: Label
 var clock_label: Label
 var exercise_area: VBoxContainer
+var error_cells: Array[Vector2i] = []
+var selection_locked := false
 
 func _ready() -> void:
 	get_window().title = "CASA SUSTENTÁVEL | GRANDEZAS E MEDIDAS"
@@ -152,25 +154,17 @@ func add_footer(parent: VBoxContainer, back_callback: Callable, show_pause: bool
 func show_menu() -> void:
 	clear_screen()
 	page = "MENU"
-	var bg := TextureRect.new()
-	bg.texture = BG_MENU
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
-	var lower := TextureRect.new()
-	var clean := BG_CLEAN
-	var crop := AtlasTexture.new()
-	crop.atlas = clean
-	crop.region = Rect2(0, clean.get_height() * 0.76, clean.get_width(), clean.get_height() * 0.24)
-	lower.texture = crop
-	lower.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	lower.anchor_top = 0.76
-	lower.anchor_right = 1.0
-	lower.anchor_bottom = 1.0
-	lower.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(lower)
+	add_screen_background(BG_CLEAN, Color.TRANSPARENT)
+	var title := make_label("CASA SUSTENTÁVEL", 64, Color("#d6ffe4"), true)
+	var title_font := SystemFont.new()
+	title_font.font_names = PackedStringArray(["Arial"])
+	title_font.font_weight = 800
+	title.add_theme_font_override("font", title_font)
+	title.add_theme_color_override("font_outline_color", Color("#095b34"))
+	title.add_theme_constant_override("outline_size", 12)
+	title.add_theme_color_override("font_shadow_color", Color(0,0.15,0.08,0.45))
+	title.add_theme_constant_override("shadow_offset_y", 5)
+	word_place(title, Rect2(180, 10, 1004, 100))
 	var layout := VBoxContainer.new()
 	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	layout.offset_left = 58
@@ -274,47 +268,49 @@ func start_game() -> void:
 func show_question() -> void:
 	clear_screen()
 	page = "FASE1"
-	if question_index == 0:
-		add_screen_background(load("res://desafio_caixas.jpg"), Color.TRANSPARENT)
-	else:
-		var art := Control.new()
-		art.set_script(preload("res://challenge_art.gd"))
-		art.room = question_index
-		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		word_place(art, Rect2(0, 0, 1364, 768))
+	var backgrounds := ["res://desafio_caixas.jpg", "res://desafio_prateleiras.jpg", "res://desafio_composto.jpg"]
+	add_screen_background(load(backgrounds[question_index]), Color.TRANSPARENT)
 	var header := Panel.new()
-	header.add_theme_stylebox_override("panel", word_style(DARK, 22, 2))
-	word_place(header, Rect2(184, 24, 1000, 142))
-	report_label(header, "FASE 1 · DESAFIO %d/3" % (question_index + 1), Rect2(24, 14, 952, 34), 23, MINT, true)
-	report_label(header, QUESTIONS[question_index].ask, Rect2(24, 61, 952, 55), 32, PAPER, true)
-	var rooms := ["ÁREA DE SERVIÇO", "COZINHA", "ESTUFA"]
-	if question_index != 0:
-		word_place(make_label(rooms[question_index], 21, TEXT_DARK, true), Rect2(200, 180, 840, 36))
-	var measures := [["500 LITROS", "1.000 LITROS"], ["1 METRO", "2 METROS"], ["2 QUILOS", "5 QUILOS"]]
+	header.add_theme_stylebox_override("panel", word_style(DARK, 20, 0))
+	word_place(header, Rect2(260, 24, 920, 106))
+	report_label(header, "DESAFIO %d/3" % (question_index + 1), Rect2(24, 10, 872, 28), 23, MINT, true)
+	report_label(header, QUESTIONS[question_index].ask, Rect2(24, 44, 872, 48), 32, PAPER, true)
+	var phase_badge := Panel.new()
+	phase_badge.add_theme_stylebox_override("panel", word_style(DARK, 16, 1))
+	word_place(phase_badge, Rect2(26, 26, 140, 60))
+	report_label(phase_badge, "FASE 1", Rect2(5,5,130,50), 25, PAPER, true)
+	var measures := [["500 LITROS", "1.000 LITROS"], ["1,20 M", "1,50 M"], ["2 QUILOS", "5 QUILOS"]]
 	for i in range(2):
 		var target := Button.new()
 		target.name = "Object" + str(i)
-		target.tooltip_text = measures[question_index][i]
+		target.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		target.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-		target.add_theme_stylebox_override("hover", word_style(Color(0.3,0.9,0.6,0.12), 18, 3))
-		target.add_theme_stylebox_override("focus", word_style(Color.TRANSPARENT, 18, 3))
+		for state in ["hover", "focus", "pressed", "disabled"]:
+			target.add_theme_stylebox_override(state, StyleBoxEmpty.new())
 		target.pressed.connect(answer_question.bind(i))
 		var object_rect := Rect2(245+i*430, 244, 355, 316)
 		if question_index == 0:
 			object_rect = Rect2(343, 277, 270, 180) if i == 0 else Rect2(680, 241, 360, 216)
+		elif question_index == 1:
+			object_rect = Rect2(220, 270, 305, 218) if i == 0 else Rect2(690, 270, 390, 218)
+		else:
+			object_rect = Rect2(434, 346, 167, 195) if i == 0 else Rect2(686, 265, 239, 277)
 		word_place(target, object_rect)
+		if question_index == 2:
+			continue
 		var plate := Panel.new()
 		plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		plate.add_theme_stylebox_override("panel", word_style(DARK, 12, 1))
-		var plate_rect := Rect2(280+i*430, 568, 280, 53)
+		plate.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+		var plate_rect := Rect2(260 if i == 0 else 740, 490, 230, 46)
 		if question_index == 0:
 			plate_rect = Rect2(374, 354, 204, 56) if i == 0 else Rect2(738, 346, 240, 64)
 		word_place(plate, plate_rect)
 		report_label(plate, measures[question_index][i], Rect2(4, 4, plate_rect.size.x-8, plate_rect.size.y-8), 25, PAPER, true)
 	if question_index == 0:
-		var footer := Panel.new()
-		footer.add_theme_stylebox_override("panel", word_style(Color(0.95,0.98,0.96,0.94), 20))
-		word_place(footer, Rect2(174, 622, 1016, 136))
+		var outline := Control.new()
+		outline.set_script(preload("res://tank_highlight.gd"))
+		outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(outline)
 		for i in range(2):
 			var dimensions := "1,20 M × 0,80 M" if i == 0 else "1,60 M × 1,00 M"
 			var label := make_label(dimensions, 21, PAPER, true)
@@ -322,15 +318,32 @@ func show_question() -> void:
 			label.add_theme_constant_override("shadow_offset_x", 2)
 			label.add_theme_constant_override("shadow_offset_y", 2)
 			word_place(label, Rect2(345 if i == 0 else 716, 471, 300, 36))
-	feedback_label = make_label("TOQUE NO OBJETO PARA RESPONDER." if not answered else "RESPOSTA REGISTRADA. CONTINUE.", 22, TEXT_DARK, true)
-	word_place(feedback_label, Rect2(180, 638, 1000, 34))
+	if question_index > 0:
+		var highlight := Control.new()
+		highlight.set_script(preload("res://object_highlight.gd"))
+		highlight.challenge = question_index
+		highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(highlight)
+	var feedback_y := 550 if question_index < 2 else 580
+	var footer := Panel.new()
+	footer.name = "AnswerFeedback"
+	footer.visible = answered
+	footer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	footer.add_theme_stylebox_override("panel", word_style(DARK, 20))
+	word_place(footer, Rect2(292, feedback_y, 780, 128))
+	feedback_label = make_label("RESPOSTA REGISTRADA. CONTINUE." if answered else "", 24, PAPER, true)
+	feedback_label.visible = answered
+	word_place(feedback_label, Rect2(310, feedback_y + 12, 744, 38))
 	var next := make_button("PRÓXIMO DESAFIO" if question_index < 2 else "CONCLUIR FASE 1", next_question, true)
 	next.disabled = not answered
-	word_place(next, Rect2(482, 688, 400, 64))
+	next.visible = true
+	next.add_theme_stylebox_override("disabled", panel_style(Color("#304b48"), Color("#618278"), 18, 2))
+	next.add_theme_color_override("font_disabled_color", Color("#a7b9b2"))
+	word_place(next, Rect2(482, feedback_y + 60, 400, 64))
 	set_meta("next_button", next)
 	var gear := Button.new()
 	gear.name = "PhaseSettings"
-	gear.tooltip_text = "PAUSAR"
+	gear.tooltip_text = ""
 	gear.add_theme_stylebox_override("normal", word_style(DARK, 17, 3))
 	gear.add_theme_stylebox_override("hover", word_style(Color("#235144"), 17, 3))
 	gear.add_theme_stylebox_override("focus", word_style(Color.TRANSPARENT, 17, 3))
@@ -346,16 +359,20 @@ func answer_question(choice: int) -> void:
 	if page != "FASE1" or answered:
 		return
 	var right := choice == int(QUESTIONS[question_index].correct)
+	play_word_sound(right)
+	get_node("AnswerFeedback").show()
+	feedback_label.show()
 	if right:
 		score += 1
-		feedback_label.text = "MUITO BEM! VOCÊ COMPAROU AS MEDIDAS COM ATENÇÃO."
-		feedback_label.add_theme_color_override("font_color", GREEN)
+		feedback_label.text = "MUITO BEM! RESPOSTA CERTA."
+		feedback_label.add_theme_color_override("font_color", MINT)
 	else:
-		feedback_label.text = "BOA TENTATIVA! OBSERVE OS NÚMEROS E SIGA EM FRENTE."
-		feedback_label.add_theme_color_override("font_color", Color("#9a6635"))
+		feedback_label.text = "BOA TENTATIVA! VAMOS CONTINUAR."
+		feedback_label.add_theme_color_override("font_color", Color("#ffd095"))
 	answered = true
 	var next: Button = get_meta("next_button")
 	next.disabled = false
+	next.show()
 	save_current_row()
 
 func next_question() -> void:
@@ -369,17 +386,33 @@ func next_question() -> void:
 		show_question()
 
 func show_phase_one_result() -> void:
-	clear_screen()
+	question_index = 2
+	show_question()
+	question_index = 3
 	page = "RESULTADO1"
-	var column := centered_panel()
-	add_heading(column, "FASE 1 CONCLUÍDA!", student_name)
-	column.add_child(make_label("VOCÊ ACERTOU %d DE %d EXERCÍCIOS." % [score, QUESTIONS.size()], 30, GREEN, true))
-	column.add_child(make_label("AGORA VAMOS ENCONTRAR AS PALAVRAS DA CIDADE SUSTENTÁVEL.", 21, TEXT_DARK, true))
-	var start := make_button("COMEÇAR FASE 2  →", start_word_search, true)
-	column.add_child(start)
-	column.add_child(make_button("SALVAR E VOLTAR AO MENU", save_current_progress))
+	play_celebration(false)
+	var cover := ColorRect.new()
+	cover.color = Color(0.02, 0.08, 0.08, 0.76)
+	cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(cover)
+	var panel := Panel.new()
+	panel.name = "PhaseOneComplete"
+	panel.add_theme_stylebox_override("panel", word_style(DARK, 26, 3))
+	cover.add_child(panel)
+	panel.position = Vector2(302, 194)
+	panel.size = Vector2(760, 380)
+	report_label(panel, "FASE 1 CONCLUÍDA", Rect2(30, 28, 700, 55), 36, PAPER, true)
+	report_label(panel, "VOCÊ ACERTOU %d DE 3 DESAFIOS!" % score, Rect2(30, 112, 700, 48), 30, MINT, true)
+	for i in range(2):
+		var button := make_button("COMEÇAR FASE 2" if i == 0 else "SALVAR E VOLTAR AO MENU", start_word_search if i == 0 else save_current_progress, i == 0)
+		panel.add_child(button)
+		button.position = Vector2(100, 208 + i * 82)
+		button.size = Vector2(560, 64)
 
 func start_word_search() -> void:
+	error_cells.clear()
+	selection_locked = false
+	word_start = Vector2i(-1, -1)
 	found_words.clear()
 	found_cells.clear()
 	elapsed = 0.0
@@ -434,6 +467,13 @@ func show_word_search() -> void:
 	var board := Panel.new()
 	board.add_theme_stylebox_override("panel", word_style(Color("#10232b"), 18, 3))
 	word_place(board, Rect2(182, 101, 568, 569))
+	var glow := Control.new()
+	glow.set_script(preload("res://word_glow.gd"))
+	glow.segments = completed_segments()
+	if not error_cells.is_empty():
+		glow.error_segment = [error_cells.front(), error_cells.back()]
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(glow)
 	for y in range(16):
 		for x in range(16):
 			var cell := Vector2i(x, y)
@@ -441,11 +481,15 @@ func show_word_search() -> void:
 			button.text = grid[y][x]
 			button.add_theme_font_size_override("font_size", 23)
 			button.add_theme_color_override("font_color", PAPER)
-			var selected := found_cells.has(cell) or word_start == cell
-			button.add_theme_stylebox_override("normal", word_style(Color("#327d54") if selected else Color("#22343c"), 5, 1 if selected else 0))
-			button.add_theme_stylebox_override("hover", word_style(Color("#3b7759"), 5, 1))
-			button.add_theme_stylebox_override("pressed", word_style(Color("#438d65"), 5, 1))
-			button.add_theme_stylebox_override("focus", word_style(Color.TRANSPARENT, 5, 1))
+			var fill := Color.TRANSPARENT if found_cells.has(cell) else Color("#22343c")
+			if word_start == cell:
+				fill = Color("#287fcb")
+			if error_cells.has(cell):
+				fill = Color.TRANSPARENT
+			button.add_theme_stylebox_override("normal", word_style(fill, 4, 0))
+			button.add_theme_stylebox_override("hover", word_style(fill if word_start == cell or error_cells.has(cell) else Color(0.25,0.6,1,0.2), 4, 0))
+			button.add_theme_stylebox_override("pressed", word_style(Color("#287fcb"), 4, 0))
+			button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 			word_place(button, Rect2(194 + x * 34.2, 111 + y * 34.3, 30.8, 31.3))
 			button.pressed.connect(select_grid_cell.bind(cell, button))
 	var side := Panel.new()
@@ -463,13 +507,19 @@ func show_word_search() -> void:
 		word_place(row, Rect2(827, 223 + i * 62, 347, 46))
 		word_place(make_label("✓" if found_words.has(word) else "○", 26, Color("#50a777"), true), Rect2(834, 225 + i * 62, 36, 42))
 		word_place(make_label(word, 26, TEXT_DARK), Rect2(878, 225 + i * 62, 296, 42))
-	var timer := Panel.new()
-	timer.add_theme_stylebox_override("panel", word_style(Color("#12292c"), 16, 2))
-	word_place(timer, Rect2(96, 23, 137, 61))
+	for rect in [Rect2(26,23,140,61), Rect2(178,23,61,61), Rect2(251,23,136,61)]:
+		var tile := Panel.new()
+		tile.add_theme_stylebox_override("panel", word_style(Color("#12292c"), 16, 2))
+		word_place(tile, rect)
+	word_place(make_label("FASE 2", 25, MINT, true), Rect2(30,25,132,56))
+	var clock_icon := Control.new()
+	clock_icon.set_script(preload("res://clock_icon.gd"))
+	clock_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	word_place(clock_icon, Rect2(178,23,61,61))
 	clock_label = make_label(format_time(int(elapsed)), 33, PAPER, true)
-	word_place(clock_label, Rect2(100, 25, 129, 56))
+	word_place(clock_label, Rect2(255,25,128,56))
 	var settings := Button.new()
-	settings.tooltip_text = "PAUSAR E CONFIGURAÇÕES"
+	settings.tooltip_text = ""
 	settings.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 	settings.add_theme_stylebox_override("hover", word_style(Color(1, 1, 1, 0.1), 14))
 	settings.pressed.connect(toggle_pause)
@@ -511,43 +561,74 @@ func add_screen_background(texture: Texture2D, tint: Color) -> void:
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(veil)
 
-func select_grid_cell(cell: Vector2i, button: Button) -> void:
-	if is_paused:
+func select_grid_cell(cell: Vector2i, _button: Button) -> void:
+	if is_paused or selection_locked:
 		return
 	if word_start.x < 0:
 		word_start = cell
-		button.add_theme_stylebox_override("normal", word_style(Color("#327d54"), 5, 2))	
-		return
-	var end := cell
-	var dx := end.x - word_start.x
-	var dy := end.y - word_start.y
-	var steps := maxi(absi(dx), absi(dy))
-	if steps == 0 or (dx != 0 and dy != 0 and absi(dx) != absi(dy)):
-		word_start = Vector2i(-1, -1)
 		show_word_search()
 		return
-	var sx := 0 if dx == 0 else signi(dx)
-	var sy := 0 if dy == 0 else signi(dy)
+	var first := word_start
+	word_start = Vector2i(-1,-1)
+	var delta := cell - first
+	var steps := maxi(absi(delta.x), absi(delta.y))
+	var selected: Array[Vector2i] = []
 	var guess := ""
-	for i in range(steps + 1):
-		var pos := word_start + Vector2i(sx, sy) * i
-		if pos.x < 0 or pos.x >= 16 or pos.y < 0 or pos.y >= 16:
-			word_start = Vector2i(-1, -1)
-			return
-		guess += grid[pos.y][pos.x]
-	var reverse := ""
-	for i in range(guess.length()):
-		reverse = guess.substr(i, 1) + reverse
+	if steps > 0 and (delta.x == 0 or delta.y == 0 or absi(delta.x) == absi(delta.y)):
+		for i in range(steps + 1):
+			var p := first + Vector2i(signi(delta.x), signi(delta.y)) * i
+			selected.append(p)
+			guess += grid[p.y][p.x]
+	else:
+		selected.assign([first, cell])
 	for word in WORDS:
-		var plain := strip_accents(word)
-		if not found_words.has(word) and (guess == plain or reverse == plain):
+		if not found_words.has(word) and (guess == strip_accents(word) or guess.reverse() == strip_accents(word)):
 			found_words.append(word)
-			for i in range(steps + 1):
-				var matched_cell := word_start + Vector2i(sx, sy) * i
-				if not found_cells.has(matched_cell):
-					found_cells.append(matched_cell)
-	word_start = Vector2i(-1, -1)
+			for p in selected:
+				if not found_cells.has(p):
+					found_cells.append(p)
+			play_word_sound(true)
+			show_word_search()
+			return
+	error_cells.assign(selected)
+	selection_locked = true
+	play_word_sound(false)
 	show_word_search()
+	get_tree().create_timer(0.65).timeout.connect(func():
+		error_cells.clear()
+		selection_locked = false
+		if page == "PALAVRAS" and not is_paused:
+			show_word_search()
+	)
+
+func completed_segments() -> Array:
+	var starts := [Vector2i(0,10),Vector2i(13,0),Vector2i(1,3),Vector2i(11,3),Vector2i(7,2),Vector2i(15,1),Vector2i(4,0)]
+	var dirs := [Vector2i.RIGHT,Vector2i.DOWN,Vector2i.DOWN,Vector2i.DOWN,Vector2i.RIGHT,Vector2i.DOWN,Vector2i.RIGHT]
+	var result: Array = []
+	for i in range(WORDS.size()):
+		if found_words.has(WORDS[i]):
+			result.append([starts[i], starts[i]+dirs[i]*(strip_accents(WORDS[i]).length()-1)])
+	return result
+
+func play_word_sound(correct: bool) -> void:
+	var audio := AudioStreamPlayer.new()
+	get_tree().root.add_child(audio)
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = 22050
+	var bytes := PackedByteArray()
+	var count := 8820
+	bytes.resize(count * 2)
+	for i in range(count):
+		var t := float(i) / 22050.0
+		var frequency := (660.0 if t < 0.18 else 880.0) if correct else (260.0 - 200.0*t)
+		var envelope := minf(t*70,1.0) * maxf(0,1.0-t/0.4)
+		var sample := int(sin(TAU*frequency*t)*envelope*5000)
+		bytes.encode_s16(i*2,sample)
+	wav.data = bytes
+	audio.stream = wav
+	audio.finished.connect(audio.queue_free)
+	audio.play()
 
 func toggle_pause() -> void:
 	if is_paused:
@@ -588,19 +669,36 @@ func save_current_row() -> void:
 	upsert_report({"aluno": student_name, "fase_1_acertos": score, "fase_1_total": QUESTIONS.size(), "fase_2_encontradas": found_words.size(), "fase_2_total": WORDS.size(), "tempo_fase_2_segundos": int(elapsed), "concluido": false, "atualizado_em": Time.get_datetime_string_from_system()})
 
 func complete_game() -> void:
+	play_celebration(true)
 	is_paused = false
 	clear_snapshot()
 	var duration := int(elapsed)
 	upsert_report({"aluno": student_name, "fase_1_acertos": score, "fase_1_total": QUESTIONS.size(), "fase_2_encontradas": found_words.size(), "fase_2_total": WORDS.size(), "tempo_fase_2_segundos": duration, "concluido": true, "atualizado_em": Time.get_datetime_string_from_system()})
 	clear_screen()
 	page = "FINAL"
-	var col := centered_panel()
-	add_heading(col, "PARABÉNS, %s!" % student_name, "AS DUAS FASES FORAM CONCLUÍDAS.")
-	col.add_child(make_label("FASE 1: %d DE %d ACERTOS" % [score, QUESTIONS.size()], 25, GREEN, true))
-	col.add_child(make_label("FASE 2: %s  ·  %d PALAVRAS" % [format_time(int(elapsed)), WORDS.size()], 25, GREEN, true))
-	col.add_child(make_label("SEU RESULTADO FOI SALVO NO RELATÓRIO.", 19, TEXT_DARK, true))
-	col.add_child(make_button("VER RELATÓRIO", show_report, true))
-	add_footer(col, show_menu)
+	add_screen_background(preload("res://final_fundo.png"), Color.TRANSPARENT)
+	var gold := Color("#f4df98")
+	var content := Control.new()
+	word_place(content, Rect2(200, 70, 964, 610))
+	report_label(content, "JOGO CONCLUÍDO!", Rect2(20, 20, 924, 70), 48, gold, true)
+	report_label(content, "PARABÉNS, " + student_name + "!", Rect2(40, 103, 884, 50), 32, PAPER, true)
+	report_label(content, "VOCÊ COMPLETOU AS DUAS FASES.", Rect2(40, 165, 884, 40), 24, gold, true)
+	for i in range(2):
+		var card := Panel.new()
+		var card_style := word_style(Color(0.03,0.14,0.16,0.87), 16, 1)
+		card_style.border_color = gold
+		card.add_theme_stylebox_override("panel", card_style)
+		content.add_child(card)
+		card.position = Vector2(72+i*420, 234)
+		card.size = Vector2(400, 130)
+		report_label(card, "FASE 1 · PONTUAÇÃO" if i == 0 else "FASE 2 · TEMPO", Rect2(20,14,360,36), 23, gold, true)
+		report_label(card, "%d DE 3 ACERTOS" % score if i == 0 else format_time(int(elapsed)), Rect2(20,63,360,48), 34, PAPER, true)
+	report_label(content, "SEU RESULTADO FOI SALVO NO RELATÓRIO.", Rect2(40,390,884,40), 23, PAPER, true)
+	for i in range(2):
+		var button := make_button("VER RELATÓRIO" if i == 0 else "VOLTAR AO MENU", show_report if i == 0 else show_menu, i == 0)
+		content.add_child(button)
+		button.position = Vector2(72+i*420, 470)
+		button.size = Vector2(400,70)
 
 func upsert_report(row: Dictionary) -> void:
 	if session_id.is_empty():
@@ -678,9 +776,9 @@ func show_report() -> void:
 	frame.add_child(line)
 	line.position = Vector2(42, 93)
 	line.size = Vector2(842, 2)
-	report_label(frame, "POS.", Rect2(47, 103, 65, 34), 19, MINT, true)
-	report_label(frame, "ALUNO", Rect2(145, 103, 230, 34), 19, MINT)
-	report_label(frame, "PONTUAÇÃO" if report_phase == 1 else "TEMPO DE CONCLUSÃO", Rect2(470, 103, 400, 34), 19, MINT)
+	report_label(frame, "POSIÇÃO", Rect2(35, 103, 110, 34), 19, MINT, true)
+	report_label(frame, "ALUNO", Rect2(165, 103, 370, 34), 19, MINT)
+	report_label(frame, "PONTUAÇÃO" if report_phase == 1 else "TEMPO DE CONCLUSÃO", Rect2(605, 103, 250, 34), 19, MINT, true)
 	var scroll := ScrollContainer.new()
 	scroll.name = "RankingScroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -711,10 +809,10 @@ func show_report() -> void:
 			var badge := Panel.new()
 			badge.add_theme_stylebox_override("panel", word_style(medal, 18, 2))
 			row.add_child(badge)
-			badge.position = Vector2(33, 5)
+			badge.position = Vector2(48, 5)
 			badge.size = Vector2(34, 34)
-		report_label(row, str(i + 1), Rect2(17, 3, 65, 38), 25, DARK if i < 3 else PAPER, true)
-		var name_label := report_label(row, str(entry.get("aluno", "")), Rect2(120, 3, 231, 38), 23)
+		report_label(row, str(i + 1), Rect2(10, 3, 110, 38), 25, DARK if i < 3 else PAPER, true)
+		var name_label := report_label(row, str(entry.get("aluno", "")), Rect2(140, 3, 410, 38), 23)
 		name_label.tooltip_text = str(entry.get("aluno", "")).to_upper()
 		var points := clampi(int(entry.get("fase_1_acertos", 0)), 0, 3)
 		for n in range(3 if report_phase == 1 else 0):
@@ -722,12 +820,12 @@ func show_report() -> void:
 			star.set_script(preload("res://score_star.gd"))
 			star.earned = n < points
 			row.add_child(star)
-			star.position = Vector2(460 + n * 34, 5)
+			star.position = Vector2(615 + n * 34, 5)
 			star.size = Vector2(30, 34)
 		if report_phase == 1:
-			report_label(row, "%d/3" % points, Rect2(580, 3, 75, 38), 24)
+			report_label(row, "%d/3" % points, Rect2(727, 3, 68, 38), 24, PAPER, true)
 		else:
-			report_label(row, format_time(mini(int(entry.get("tempo_fase_2_segundos", 0)), 3599)), Rect2(460, 3, 270, 38), 27)
+			report_label(row, format_time(mini(int(entry.get("tempo_fase_2_segundos", 0)), 3599)), Rect2(580, 3, 250, 38), 27, PAPER, true)
 	var note := Panel.new()
 	note.add_theme_stylebox_override("panel", word_style(Color("#1c3038"), 14, 1))
 	word_place(note, Rect2(244, 507, 877, 90))
@@ -780,12 +878,38 @@ func clear_report() -> void:
 func show_credits() -> void:
 	clear_screen()
 	page = "CREDITOS"
-	var col := centered_panel()
-	add_heading(col, "CRÉDITOS", "JOGO EDUCATIVO  ·  CIDADE INTELIGENTE")
-	col.add_child(make_label("CRIADO POR", 19, GREEN, true))
-	col.add_child(make_label("HENRIQUE GABRIEL KLUCZKOWSKI BRANDT\nHENRIQUE PONTES DE OLIVEIRA\nJOÃO PEDRO MACHADO LIMA\nWILLIAM GONÇALVES MARTINS", 24, TEXT_DARK, true))
-	col.add_child(make_label("CIÊNCIA DA COMPUTAÇÃO  ·  UTFPR PONTA GROSSA\nDISCIPLINA DE ENGENHARIA DE SOFTWARE", 18, Color("#487061"), true))
-	add_footer(col, show_menu)
+	add_screen_background(preload("res://final_fundo.png"), Color.TRANSPARENT)
+	var gold := Color("#f4df98")
+	report_label(self, "CRÉDITOS", Rect2(200,65,964,80), 50, gold, true)
+	var backing := Panel.new()
+	backing.add_theme_stylebox_override("panel", word_style(Color(0.025,0.12,0.14,0.78),18))
+	backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	word_place(backing, Rect2(210,160,944,414))
+	var scroll := ScrollContainer.new()
+	scroll.name = "CreditsScroll"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	word_place(scroll, Rect2(235,178,894,378))
+	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 22)
+	scroll.add_child(column)
+	column.add_child(make_label("JOGO CRIADO POR",26,gold,true))
+	var names := ["HENRIQUE GABRIEL KLUCZKOWSKI BRANDT", "HENRIQUE PONTES DE OLIVEIRA", "JOÃO PEDRO MACHADO LIMA", "WILLIAM GONÇALVES MARTINS"]
+	for person in names:
+		column.add_child(make_label(person,25,PAPER,true))
+	column.add_child(make_label("CIÊNCIA DA COMPUTAÇÃO · UTFPR PONTA GROSSA",24,gold,true))
+	column.add_child(make_label("DISCIPLINA DE ENGENHARIA DE SOFTWARE",24,gold,true))
+	var divider := HSeparator.new()
+	column.add_child(divider)
+	var sections := [["","Casa Sustentável é um jogo socioeducativo 2D desenvolvido para alunos com deficiência intelectual, com o objetivo de ensinar conceitos de grandezas e medidas de maneira lúdica, acessível e interativa."],["","O jogo apresenta uma temática relacionada à sustentabilidade e ao ambiente doméstico, utilizando elementos visuais, atividades práticas e desafios educativos para estimular o raciocínio, a atenção, a percepção visual e a aprendizagem."],["","O jogo é dividido em duas fases:"],["Primeira fase — Grandezas e Medidas","O jogador participa de atividades interativas nas quais precisa identificar e comparar objetos de diferentes tamanhos, selecionando, por exemplo, qual é o maior entre os elementos apresentados.\n\nA fase conta com instruções simples, tutorial e recursos de áudio para auxiliar na compreensão das atividades. O jogador recebe feedback visual e sonoro de acordo com suas escolhas."],["Segunda fase — Caça-palavras","O jogador deve encontrar palavras relacionadas à sustentabilidade, à casa e aos conceitos trabalhados durante o jogo.\n\nEssa atividade busca estimular a atenção, a identificação de palavras e a associação entre os conteúdos educativos apresentados."],["Recursos do jogo","O jogo possui um menu inicial com opções para começar a partida e visualizar os créditos, além de uma interface em estilo cartoon, com elementos coloridos, botões acessíveis e navegação intuitiva.\n\nAo final das atividades, o sistema gera um relatório de desempenho do jogador, permitindo acompanhar seus resultados durante as fases."],["Objetivo geral","Proporcionar uma experiência educativa inclusiva e divertida, contribuindo para a aprendizagem de grandezas e medidas e para o desenvolvimento de habilidades cognitivas por meio de atividades interativas relacionadas ao cotidiano e à sustentabilidade."]]
+	for section in sections:
+		if not section[0].is_empty():
+			column.add_child(make_label(section[0],26,gold))
+		var body := make_label(section[1],23,PAPER)
+		body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		column.add_child(body)
+	word_place(make_button("VOLTAR AO MENU",show_menu),Rect2(462,600,440,64))
 
 func quit_game() -> void:
 	get_tree().quit()
@@ -853,6 +977,7 @@ func resume_snapshot() -> void:
 		show_question()
 
 func show_words_complete() -> void:
+	play_celebration(false)
 	is_paused = true
 	clear_snapshot()
 	upsert_report({"aluno": student_name, "fase_1_acertos": score, "fase_1_total": 3, "fase_2_encontradas": 7, "fase_2_total": 7, "tempo_fase_2_segundos": int(elapsed), "concluido": true, "atualizado_em": Time.get_datetime_string_from_system()})
@@ -872,3 +997,40 @@ func show_words_complete() -> void:
 	panel.add_child(button)
 	button.position = Vector2(160, 276)
 	button.size = Vector2(440, 70)
+
+# FANFARRA CURTA PARA AS FASES; ACORDE E MELODIA MAIS LONGOS NO FINAL.
+func play_celebration(epic: bool) -> void:
+	for child in get_tree().root.get_children():
+		if child is AudioStreamPlayer and child.has_meta("celebration"):
+			child.stop()
+			child.queue_free()
+	var audio := AudioStreamPlayer.new()
+	audio.set_meta("celebration", true)
+	get_tree().root.add_child(audio)
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = 22050
+	var duration := 3.8 if epic else 1.8
+	var notes := [261.63,329.63,392.0,523.25,659.25,783.99,1046.5] if epic else [523.25,659.25,783.99,1046.5]
+	var beat := 0.30 if epic else 0.22
+	var bytes := PackedByteArray()
+	var count := int(duration * 22050)
+	bytes.resize(count * 2)
+	for i in range(count):
+		var t := float(i) / 22050.0
+		var note_index := mini(int(t / beat), notes.size()-1)
+		var local_time := t - note_index * beat
+		var env := minf(local_time * 60,1.0) * exp(-local_time * 2.4)
+		var frequency: float = notes[note_index]
+		var melody := (sin(TAU*frequency*t) + 0.25*sin(TAU*frequency*2*t)) * env
+		var chord := 0.0
+		if epic:
+			for hz in [130.815,196.0,261.63,329.63,392.0]:
+				chord += sin(TAU*hz*t) * 0.12
+			chord *= minf(t*5,1.0)
+		var fade := minf((duration-t)*2,1.0)
+		bytes.encode_s16(i*2, int(clampf((melody*0.55+chord)*fade,-1,1)*11000))
+	wav.data = bytes
+	audio.stream = wav
+	audio.finished.connect(audio.queue_free)
+	audio.play()

@@ -41,6 +41,7 @@ func _draw() -> void:
 		for i in range(2):
 			var x := 260.0+i*425
 			var w := 210.0+i*130
+			draw_rect(Rect2(x-4,366,w+8,36),Color("#9fe5f5"))
 			draw_rect(Rect2(x,370,w,28),Color("#be8955"))
 			draw_rect(Rect2(x+24,398,18,65),Color("#5d776e"))
 			draw_rect(Rect2(x+w-42,398,18,65),Color("#5d776e"))
@@ -54,5 +55,8 @@ func _draw() -> void:
 			var h := 190.0+i*70
 			var points := PackedVector2Array([Vector2(x,540),Vector2(x-12,500),Vector2(x+25,540-h+40),Vector2(x+40,540-h),Vector2(x+w-40,540-h),Vector2(x+w-25,540-h+40),Vector2(x+w+12,500),Vector2(x+w,540)])
 			draw_colored_polygon(points,Color("#c7a16c"))
+			var contour := points.duplicate()
+			contour.append(points[0])
+			draw_polyline(contour,Color("#9fe5f5"),4,true)
 			draw_line(Vector2(x+40,540-h+20),Vector2(x+w-40,540-h+20),Color("#79603e"),8)
 			ellipse(Vector2(x+w/2,445),Vector2(45,55),Color("#528552"))
