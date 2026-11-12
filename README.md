@@ -1,25 +1,25 @@
-# CASA SUSTENTÁVEL
+# Casa Sustentável
 
-JOGO EDUCATIVO EM GODOT SOBRE GRANDEZAS, MEDIDAS E SUSTENTABILIDADE.
+Abra project.godot no Godot 4.7 e execute com F5.
 
-## COMO ABRIR
+O jogo tem três desafios de comparação na fase 1 e um caça-palavras na fase 2. Progresso e relatórios permanecem em user://progresso.json e user://relatorio.json.
 
-1. ABRA O GODOT 4.
-2. IMPORTE A PASTA QUE CONTÉM `project.godot`.
-3. ABRA O PROJETO E PRESSIONE **F6** OU **F5** PARA JOGAR.
+## Narração neural offline
 
-## O QUE O JOGO INCLUI
+A narração usa Francisca Neural (pt-BR), voz feminina brasileira da Microsoft, com velocidade 8% mais lenta e tom original. As falas estão em audio/francisca e são reproduzidas diretamente pelo Godot, sem internet, PowerShell, voz instalada ou espera de geração durante a partida. Os áudios antigos da Maria não são consultados.
 
-- MENU PARA INICIAR, VER RELATÓRIOS, VER CRÉDITOS E SAIR.
-- IDENTIFICAÇÃO DO ALUNO ANTES DA PRIMEIRA FASE.
-- FASE 1 COM CINCO EXERCÍCIOS DE COMPARAÇÃO DE MEDIDAS.
-- FASE 2 COM CAÇA-PALAVRAS E CRONÔMETRO.
-- BOTÃO PARA PAUSAR, CONTINUAR OU SALVAR E VOLTAR AO MENU.
-- RELATÓRIO LOCAL COM PONTUAÇÃO, PALAVRAS ENCONTRADAS E TEMPO.
-- OPÇÃO PARA EXPORTAR O RELATÓRIO EM CSV.
+Menus, botões, instruções, mensagens e créditos usam gravações de frases inteiras. Resultados variáveis combinam trechos e números com a mesma voz. Nomes que não constam das gravações são soletrados localmente. Nenhum nome ou resultado de aluno é enviado para geração de áudio.
 
-## DADOS SALVOS
+Passe o ponteiro por um instante sobre um botão, objeto ou texto para ouvir. O foco do teclado também lê botões. Sair interrompe a voz e fecha imediatamente.
 
-O GODOT SALVA OS RESULTADOS EM `user://relatorio.json`. O BOTÃO **EXPORTAR CSV** PERMITE ESCOLHER ONDE SALVAR UMA CÓPIA PARA ABRIR EM UMA PLANILHA.
+## Atualizar falas
 
-AS IMAGENS DE REFERÊNCIA FORAM COPIADAS PARA A PASTA DO PROJETO, QUE PODE SER ABERTA SEM DEPENDER DOS ARQUIVOS ORIGINAIS.
+tools/voice_texts.json contém o catálogo. tools/generate_voice.py gera os MP3, manifest.json e voice_bank.gd usando edge-tts 7.3.1. A geração requer internet e Python com edge-tts; a execução do jogo não requer nenhum deles. voice_bank.gd referencia os MP3 por preload, incluindo-os na exportação.
+
+Referências:
+- https://learn.microsoft.com/pt-br/azure/ai-services/speech-service/language-support
+- https://github.com/rany2/edge-tts
+
+## Manutenção
+
+LIMPEZA.md contém o registro da limpeza anterior. Os scripts check_*.gd são verificações de desenvolvimento.

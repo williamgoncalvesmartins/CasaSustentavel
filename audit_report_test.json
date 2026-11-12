@@ -1,0 +1,13 @@
+[
+  {
+    "aluno": "TESTE",
+    "atualizado_em": "2026-11-12T00:27:58",
+    "concluido": true,
+    "fase_1_acertos": 3,
+    "fase_1_total": 3,
+    "fase_2_encontradas": 7,
+    "fase_2_total": 7,
+    "partida_id": "1794454076.734-743291699",
+    "tempo_fase_2_segundos": 0
+  }
+]

@@ -1,10 +1,7 @@
 extends Control
 
-const BG_MENU = preload("res://menu_inicial.png")
 const BG_CLEAN = preload("res://casa_sem_botoes.jpg")
 const BG_WORDS = preload("res://fase2_fundo_sem_relogio.png")
-const BG_REPORT = preload("res://Gemini_Generated_Image_t0yd63t0yd63t0yd.jpg")
-const BG_QUIZ = preload("res://WhatsApp Image 2026-10-14 at 14.57.31.jpeg")
 const GREEN = Color("#25a85e")
 const MINT = Color("#77edac")
 const DARK = Color("#10242b")
@@ -42,8 +39,13 @@ var clock_label: Label
 var exercise_area: VBoxContainer
 var error_cells: Array[Vector2i] = []
 var selection_locked := false
+var narrator: Node
+var last_narrated_screen := ""
 
 func _ready() -> void:
+	narrator = preload("res://narration.gd").new()
+	narrator.game = self
+	get_tree().root.add_child.call_deferred(narrator)
 	get_window().title = "CASA SUSTENTÁVEL | GRANDEZAS E MEDIDAS"
 	load_report()
 	show_menu()
@@ -55,6 +57,7 @@ func _process(delta: float) -> void:
 			clock_label.text = format_time(int(elapsed))
 
 func clear_screen() -> void:
+	call_deferred("_narrate_screen")
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -88,6 +91,9 @@ func make_button(text: String, callback: Callable, primary: bool = false) -> But
 	button.add_theme_stylebox_override("pressed", panel_style(Color("#11633d"), MINT, 18, 3))
 	button.add_theme_stylebox_override("focus", panel_style(Color.TRANSPARENT, MINT, 18, 4))
 	button.pressed.connect(callback)
+	button.set_meta("narration_bound",true)
+	button.focus_entered.connect(func(): narrator.say(button.text))
+	button.button_down.connect(func(): narrator.say(button.text))
 	return button
 
 func panel_style(fill: Color, border: Color = Color.TRANSPARENT, radius: int = 16, border_width: int = 0) -> StyleBoxFlat:
@@ -283,6 +289,7 @@ func show_question() -> void:
 	for i in range(2):
 		var target := Button.new()
 		target.name = "Object" + str(i)
+		target.set_meta("speech", ("OBJETO À ESQUERDA. " if i == 0 else "OBJETO À DIREITA. ") + measures[question_index][i])
 		target.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		target.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 		for state in ["hover", "focus", "pressed", "disabled"]:
@@ -343,6 +350,7 @@ func show_question() -> void:
 	set_meta("next_button", next)
 	var gear := Button.new()
 	gear.name = "PhaseSettings"
+	gear.set_meta("speech", "PAUSAR O JOGO")
 	gear.tooltip_text = ""
 	gear.add_theme_stylebox_override("normal", word_style(DARK, 17, 3))
 	gear.add_theme_stylebox_override("hover", word_style(Color("#235144"), 17, 3))
@@ -373,6 +381,7 @@ func answer_question(choice: int) -> void:
 	var next: Button = get_meta("next_button")
 	next.disabled = false
 	next.show()
+	narrator.say(feedback_label.text + " " + next.text)
 	save_current_row()
 
 func next_question() -> void:
@@ -479,6 +488,7 @@ func show_word_search() -> void:
 			var cell := Vector2i(x, y)
 			var button := Button.new()
 			button.text = grid[y][x]
+			button.set_meta("speech", "LETRA " + grid[y][x])
 			button.add_theme_font_size_override("font_size", 23)
 			button.add_theme_color_override("font_color", PAPER)
 			var fill := Color.TRANSPARENT if found_cells.has(cell) else Color("#22343c")
@@ -520,6 +530,7 @@ func show_word_search() -> void:
 	word_place(clock_label, Rect2(255,25,128,56))
 	var settings := Button.new()
 	settings.tooltip_text = ""
+	settings.set_meta("speech", "PAUSAR O JOGO")
 	settings.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 	settings.add_theme_stylebox_override("hover", word_style(Color(1, 1, 1, 0.1), 14))
 	settings.pressed.connect(toggle_pause)
@@ -566,6 +577,7 @@ func select_grid_cell(cell: Vector2i, _button: Button) -> void:
 		return
 	if word_start.x < 0:
 		word_start = cell
+		narrator.say("LETRA " + grid[cell.y][cell.x] + ". AGORA ESCOLHA A ÚLTIMA LETRA DA PALAVRA.")
 		show_word_search()
 		return
 	var first := word_start
@@ -584,12 +596,14 @@ func select_grid_cell(cell: Vector2i, _button: Button) -> void:
 	for word in WORDS:
 		if not found_words.has(word) and (guess == strip_accents(word) or guess.reverse() == strip_accents(word)):
 			found_words.append(word)
+			narrator.say("MUITO BEM! VOCÊ ENCONTROU " + word + ".")
 			for p in selected:
 				if not found_cells.has(p):
 					found_cells.append(p)
 			play_word_sound(true)
 			show_word_search()
 			return
+	narrator.say("ESSA NÃO É UMA DAS PALAVRAS. VAMOS TENTAR NOVAMENTE!")
 	error_cells.assign(selected)
 	selection_locked = true
 	play_word_sound(false)
@@ -639,6 +653,7 @@ func toggle_pause() -> void:
 			show_word_search()
 		return
 	is_paused = true
+	narrator.say("JOGO PAUSADO. CONTINUAR. OU SALVAR E VOLTAR AO MENU.")
 	var cover := ColorRect.new()
 	cover.name = "PauseCover"
 	cover.color = Color(0.02, 0.08, 0.08, 0.76)
@@ -912,6 +927,8 @@ func show_credits() -> void:
 	word_place(make_button("VOLTAR AO MENU",show_menu),Rect2(462,600,440,64))
 
 func quit_game() -> void:
+	if is_instance_valid(narrator):
+		narrator.stop()
 	get_tree().quit()
 
 func format_time(seconds: int) -> String:
@@ -977,6 +994,7 @@ func resume_snapshot() -> void:
 		show_question()
 
 func show_words_complete() -> void:
+	narrator.say("FASE DOIS CONCLUÍDA! VOCÊ ENCONTROU TODAS AS SETE PALAVRAS. TEMPO: " + spoken_time() + ". CONTINUAR.")
 	play_celebration(false)
 	is_paused = true
 	clear_snapshot()
@@ -1034,3 +1052,29 @@ func play_celebration(epic: bool) -> void:
 	audio.stream = wav
 	audio.finished.connect(audio.queue_free)
 	audio.play()
+
+func spoken_time() -> String:
+	return "%d MINUTOS E %d SEGUNDOS" % [int(elapsed)/60, int(elapsed)%60]
+
+func _narrate_screen() -> void:
+	if not is_instance_valid(narrator):
+		return
+	narrator.bind_controls(self)
+	var key := page + str(question_index) + str(report_phase) + str(is_paused)
+	if key == last_narrated_screen:
+		return
+	last_narrated_screen = key
+	var message := ""
+	match page:
+		"MENU": message = "BEM-VINDO À CASA SUSTENTÁVEL! VAMOS APRENDER JUNTOS? ESCOLHA INICIAR JOGO, RELATÓRIO, CRÉDITOS OU SAIR DO JOGO."
+		"NOME": message = "DIGITE O SEU NOME. DEPOIS, ESCOLHA COMEÇAR."
+		"RETOMAR": message = "VOCÊ TEM UMA PARTIDA SALVA. QUER CONTINUAR DE ONDE PAROU OU REINICIAR?"
+		"FASE1": message = "FASE UM. DESAFIO %d DE TRÊS. " % (question_index+1) + QUESTIONS[question_index].ask + " TOQUE NO OBJETO PARA ESCOLHER."
+		"RESULTADO1": message = "FASE UM CONCLUÍDA! VOCÊ ACERTOU %d DE TRÊS DESAFIOS. COMEÇAR FASE DOIS. OU SALVAR E VOLTAR AO MENU." % score
+		"PALAVRAS":
+			if not is_paused: message = "FASE DOIS. CAÇA-PALAVRAS. ENCONTRE AS SETE PALAVRAS DA LISTA. TOQUE NA PRIMEIRA LETRA E DEPOIS NA ÚLTIMA LETRA."
+		"RELATORIO": message = "RELATÓRIO DA FASE %d. " % report_phase + ("CADA ACERTO VALE UMA ESTRELA." if report_phase == 1 else "TEMPO DE CONCLUSÃO DA FASE.") + " PASSE O PONTEIRO SOBRE OS RESULTADOS PARA OUVIR."
+		"CREDITOS": message = "CRÉDITOS. CONHEÇA OS AUTORES E A PROPOSTA DO JOGO. ROLE PARA BAIXO E PASSE O PONTEIRO SOBRE O TEXTO PARA OUVIR."
+		"FINAL": message = "PARABÉNS! VOCÊ COMPLETOU O JOGO! FASE UM: %d ACERTOS. FASE DOIS: " % score + spoken_time() + ". SEU RESULTADO FOI SALVO. VER RELATÓRIO OU VOLTAR AO MENU."
+	if not message.is_empty():
+		narrator.say(message)
